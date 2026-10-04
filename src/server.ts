@@ -3,14 +3,34 @@ import express, { NextFunction, Response, Request } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { userInfo } from 'node:os';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import cors from 'cors'
+
+
+
+const app = express()
+app.use(helmet());
+app.use(cors({
+    origin: 'http://127.0.0.1:3000',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+}))
+
+app.use(express.json())
 
 
 
 
-const app = express();
-
-app.use(express.json());
+const authLimiter = rateLimit({
+    windowMs: 15*60*1000,
+    max: 5,
+    message: {
+        error: "Muitas tentativas a partir desse IP. Tente novamente após 15 minutos"
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 
 const JWT_SECRET = process.env.JWT_SECRET || "chave_fallback_desenvolvimento"
@@ -61,7 +81,7 @@ function authMiddleware(req: AuthenticatedRequest, res: Response, next: NextFunc
     
 }
 
-app.post('/register', async (req, res) =>{
+app.post('/register',authLimiter, async (req, res) =>{
     const result = authSchema.safeParse(req.body);
 
 
@@ -94,7 +114,7 @@ return res.status(201).json({
 });
 
 
-app.post('/login', async (req, res)=>{
+app.post('/login', authLimiter, async (req, res)=>{
     const result = authSchema.safeParse(req.body);
     if(!result.success) {
         return res.status(400).json({error: "Entrada inválida", detalhes: result.error.format()})
